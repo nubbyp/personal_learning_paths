@@ -8,6 +8,9 @@ from gensim.parsing.preprocessing import STOPWORDS
 from bs4 import BeautifulSoup
 import requests
 from ai.train import AsyncTrainer
+import time
+import threading
+import queue
 
 app = Flask(__name__)
 
@@ -76,8 +79,14 @@ def process_transcript(transcript,timescore):
         scored_transcript.append((chunk_str[:-1], score))
 
     return scored_transcript
-
         
+def queueTranscript(video_id,queue):
+    try:
+        ts = yttapi.get_transcript(video_id)
+    except yttapi.CouldNotRetrieveTranscript:
+        return
+    queue.put((video_id,ts))
+    
 def suggest_next_video(original_id, input_chunks, search_term):
     if(search_term == ''):
         global last_search
@@ -98,20 +107,33 @@ def suggest_next_video(original_id, input_chunks, search_term):
         output_id_list.remove(original_id)
     except:
         pass
-    output_id_list = output_id_list[:20]
+    output_id_list = output_id_list[:40]
         
     chunk_lookup_dict = {}
     
+    start = time.time()
+    
     chunk_counter = 0
     output_chunks = []
+    myq = queue.Queue()
+    threads = list()
     for video_id in output_id_list:
+        thread = threading.Thread(target=queueTranscript,args=(video_id,myq))
+        threads.append(thread)
+        thread.start()
+    
+    for thread in threads:
+        thread.join()
+    
+    for transcript in list(myq.queue):
         transcript_counter = 0
-        try:
-            output_video_list = yttapi.get_transcript(str(video_id))
-        except yttapi.CouldNotRetrieveTranscript:
-            continue
-        
-        video_length = len(output_video_list)
+        #try:
+        #    output_video_list = yttapi.get_transcript(str(video_id))
+        #except yttapi.CouldNotRetrieveTranscript:
+        #    continue
+        output_video_list = transcript[1]
+        video_length = len(transcript[1])
+        video_id = transcript[0]
     
         for i in range(video_length//10):
             chunk_text_list = []
@@ -127,7 +149,9 @@ def suggest_next_video(original_id, input_chunks, search_term):
             chunk_lookup_dict[chunk_counter] = video_id
             chunk_counter += 1
             
-
+    print ("After chunking output: " + str(time.time() - start))
+    
+    start = time.time()
 	# Exclude common stop words and those used frequently in YouTube transcripts
     my_stop_words = STOPWORDS.union(set(['[Music]', '[music]', '[Applause]', 'subscribe', 'channel', 'youtube']))
     #stoplist = set('for a of the and to in [music]'.split())
@@ -144,11 +168,13 @@ def suggest_next_video(original_id, input_chunks, search_term):
     # generates an index of the corpus, need only do this once 
     index = similarities.MatrixSimilarity(lsi[corpus])
     
+    print ("After building index: " + str(time.time() - start))
     
     video_average_score = {}
     for video_id in output_id_list:
         video_average_score[video_id] = []
     
+    start = time.time()
     
     # Go through each input chunk and get an average score for each video
     for i in range(len(input_chunks)):
@@ -193,7 +219,8 @@ def suggest_next_video(original_id, input_chunks, search_term):
                 avg_score = video_total_score[video_id]/video_chunk_counts[video_id]
                 video_average_score[video_id].append(avg_score)
     
-    
+    print ("After looping through input chunks: " + str(time.time() - start))
+        
     video_sum = {}
     for idx, video_id in enumerate(video_average_score.keys()):
         total_score = sum(x for x in video_average_score[video_id])
