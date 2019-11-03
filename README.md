@@ -17,6 +17,8 @@ This will install our Python dependencies for your configured Python environment
 
 Once you've installed the pre-requisites to your environment, you should be able to run the command `flask run` inside the directory. This will start the web server locally which the Tampermonkey script will report to.
 
+If this fails for you, you can try `export FLASK_APP='wsgi.py'` if it's unable to find the application and/or `python3 -m flask run`(in case of Py2/Py3 conflict)
+
 Note that the system depends on the Tensorflow deep learning library, but is not compatible with the just-released 2.0 version. You may need to manually install an earlier version of Tensorflow with:
 
 `pip install tensorflow==1.15`
