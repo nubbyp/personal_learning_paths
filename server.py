@@ -5,12 +5,17 @@ import json
 
 from gensim import models, corpora,similarities
 from gensim.parsing.preprocessing import STOPWORDS
-
+from bs4 import BeautifulSoup
 import requests
+from ai.train import AsyncTrainer
 
 app = Flask(__name__)
 
+RL_WEIGHT_FACTOR = 0.01
+
 last_search = ''
+rl_network = AsyncTrainer()
+rl_network.start_ai()
 
 @app.route('/watch-data',methods=['POST'])
 def watch_data():
@@ -24,8 +29,7 @@ def watch_data():
     transcript = yttapi.get_transcript(video_id)
 
     scored_transcript = process_transcript(transcript,timescore)
-    
-    
+       
     return Response(json.dumps(suggest_next_video(video_id,scored_transcript,search)),mimetype='application/json')
 
 @app.route('/searched',methods=['POST'])
@@ -33,6 +37,12 @@ def searched():
     global last_search
     req_data = request.get_json()
     last_search = req_data['query']
+    
+@app.route('/clicked',methods=['POST'])
+def clicked():
+    state = request.get_json()
+    rl_network.ai_step(state)
+    return Response(json.dumps(rl_network.weights))
 
 def process_transcript(transcript,timescore):
     idx = 0
@@ -55,15 +65,19 @@ def process_transcript(transcript,timescore):
     return scored_transcript
 
         
-def suggest_next_video(video_id, input_chunks, search_term):
+def suggest_next_video(original_id, input_chunks, search_term):
 
 	# This video_id is just a test case
-    if (video_id == 'R9npBuS9AsE'):
+    if (original_id == 'R9npBuS9AsE'):
         output_id_list = get_canned_search_results()
     else:
         output_id_list = query_video_ids(search_term)
     
     #Truncate possible video list to 20 for performance reasons
+    try:
+        output_id_list.remove(original_id)
+    except:
+        pass
     output_id_list = output_id_list[:20]
         
     chunk_lookup_dict = {}
@@ -71,7 +85,6 @@ def suggest_next_video(video_id, input_chunks, search_term):
     chunk_counter = 0
     output_chunks = []
     for video_id in output_id_list:
-    
         transcript_counter = 0
         try:
             output_video_list = yttapi.get_transcript(str(video_id))
@@ -80,9 +93,7 @@ def suggest_next_video(video_id, input_chunks, search_term):
         
         video_length = len(output_video_list)
     
-    
         for i in range(video_length//10):
-            
             chunk_text_list = []
             for j in range(10):
                 try:
@@ -108,8 +119,6 @@ def suggest_next_video(video_id, input_chunks, search_term):
     dictionary = corpora.Dictionary(texts)
     
     corpus = [dictionary.doc2bow(text) for text in texts]
-    
-    # I am making up the number 10, example used 2
     lsi = models.LsiModel(corpus, id2word=dictionary, num_topics=10)
     
     # generates an index of the corpus, need only do this once 
@@ -166,31 +175,16 @@ def suggest_next_video(video_id, input_chunks, search_term):
     
     
     video_sum = {}
-    for video_id in video_average_score.keys():
+    for idx, video_id in enumerate(video_average_score.keys()):
         total_score = sum(x for x in video_average_score[video_id])
-        video_sum[video_id] = total_score
-    
-    
+        video_sum[video_id] = total_score * (1 + RL_WEIGHT_FACTOR * rl_network.weights['param_' + str(idx)])
+
     sorted_videos = sorted(video_sum.items(), key=lambda kv: -kv[1])
     
     return sorted_videos
 
 # This is a test case only - not called in live demo
 def get_canned_search_results():
-    
-    # Canned results for demo
-    
-    """
-    output_id_list = [
-                  '4yanopKcmUw', '9mCi5ByAsRw', 'DoeEwBJJ5u8',
-                  'xDnT28Ie1BY', 'KDdkHLJm31Q', '6F-9zmOU5zE',
-                  'fNk_zzaMoSs', # linear algebra
-                  'R2JsjJyr0ck', # logarithmic functions
-                  'a8GDpzZcC9Y', # basic ballet
-                  'nM9f0W2KD5s', # Peter Thiel interview
-                  'mCZwFFrvqz4', # wedding cake
-                  '8mIGGn3AS1E'] # sew button
-    """
     
     output_id_list = [
                   # General tiny house videos
@@ -233,8 +227,6 @@ def get_canned_search_results():
 
 # This is called in the live demo
 def get_real_search_results(original_video,search_term):
-    
-
     search_words = search_term.split(' ')
     
     search_term = '%20'.join(search_words)
