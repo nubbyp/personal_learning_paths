@@ -39,6 +39,10 @@ def searched():
     last_search = req_data['query']
     
 @app.route('/clicked',methods=['POST'])
+# Takes a JSON dict of the form {"sel": I, "vals":[V_1, V_2, ... V_10]}
+# Where I is the index of the selected video (0-9) and vals is an array
+# of the scores calculated for each of the top 10 videos
+
 def clicked():
     state = request.get_json()
     rl_network.ai_step(state)
