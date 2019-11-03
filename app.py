@@ -27,10 +27,14 @@ def watch_data():
     search = req_data['query']
 
     transcript = yttapi.get_transcript(video_id)
+    
+    if(isinstance(search,str) == False):
+        search = ''
 
     scored_transcript = process_transcript(transcript,timescore)
        
-    return Response(json.dumps(suggest_next_video(video_id,scored_transcript,search)),mimetype='application/json')
+    return Response(json.dumps(suggest_next_video(video_id,scored_transcript,search),ensure_ascii=False).encode('utf-8'),mimetype='application/json')
+    #Some YouTube titles will have emojis etc in it -- safest bet is just to encode to unicode.
 
 @app.route('/searched',methods=['POST'])
 def searched():
@@ -50,6 +54,10 @@ def clicked():
 
 def process_transcript(transcript,timescore):
     idx = 0
+    # Transcripts on YouTube come in very rough chunks, based on a start time and 'duration'.
+    # It's simply too rough for us to get a good feel for what the user is trying to listen for.
+    #
+    # This list comprehension below breaks up each of those chunks into an individual timestamp per word based on the duration and number of words.
     duration_segmented = [(y[1], chunk['start']+y[0]*(chunk['duration']/(chunk['text'].count(' ')+1))) for chunk in transcript for y in list(enumerate(chunk['text'].split(' ')))] 
     scored_transcript = []
     for time in timescore: # This is sorted from 0 - end, with only maybe marginal overlap
@@ -58,6 +66,7 @@ def process_transcript(transcript,timescore):
         score = time[2]
         
         chunk_str = ''
+        #Now we're chunking up those words based on the time range the user actually watched/listened for, and scoring that more useful chunking o' words.
         for i in range(0,len(duration_segmented)):
             if(duration_segmented[i][1] > end):
                 break
@@ -70,12 +79,19 @@ def process_transcript(transcript,timescore):
 
         
 def suggest_next_video(original_id, input_chunks, search_term):
-
+    if(search_term == ''):
+        global last_search
+        search_term = last_search
+    
 	# This video_id is just a test case
-    if (original_id == 'R9npBuS9AsE'):
-        output_id_list = get_canned_search_results()
-    else:
-        output_id_list = query_video_ids(search_term)
+    #if (original_id == 'R9npBuS9AsE'):
+    #    output_id_list = get_canned_search_results()
+    #else:
+
+    output_video_list = query_video_ids(search_term)
+    
+    output_name_map = dict(output_video_list)
+    output_id_list = [video[0] for video in output_video_list]
     
     #Truncate possible video list to 20 for performance reasons
     try:
@@ -181,13 +197,14 @@ def suggest_next_video(original_id, input_chunks, search_term):
     video_sum = {}
     for idx, video_id in enumerate(video_average_score.keys()):
         total_score = sum(x for x in video_average_score[video_id])
-        video_sum[video_id] = total_score * (1 + RL_WEIGHT_FACTOR * rl_network.weights['param_' + str(idx)])
+        video_sum[video_id] = (total_score * (1 + RL_WEIGHT_FACTOR * rl_network.weights['param_' + str(idx)]), output_name_map[video_id])
 
-    sorted_videos = sorted(video_sum.items(), key=lambda kv: -kv[1])
+    sorted_videos = sorted(video_sum.items(), key=lambda kv: -kv[1][0])
     
     return sorted_videos
 
-# This is a test case only - not called in live demo
+## This is a test case only - not called in live demo
+# Now deprecated for new search format w/ Video Title
 def get_canned_search_results():
     
     output_id_list = [
@@ -228,40 +245,6 @@ def get_canned_search_results():
             
     return output_id_list
 
-
-# This is called in the live demo
-def get_real_search_results(original_video,search_term):
-    search_words = search_term.split(' ')
-    
-    search_term = '%20'.join(search_words)
-    #max_results = 20
-    
-    output_id_list = []
-    
-
-    url = 'http://youtube-scrape.herokuapp.com/api/search?q=' + str(search_term)
-
-    request_results = requests.get(url, timeout=40)
-    
-    result_json = request_results.json()
-    
-    try:
-        items = result_json['results']
-        items = items[:20]
-    except Exception as e:
-        print ("ERROR: " + str(e))
-        return None
-   
-
-    for item in items:
-        try:
-            video_id = item['video']['id']
-            output_id_list.append(str(video_id))
-        except KeyError:
-            continue
-        
-    return output_id_list
-
 def query_video_ids(query,page=1):
     url = 'https://www.youtube.com/results?q=' + query
     if(page > 1):
@@ -270,7 +253,8 @@ def query_video_ids(query,page=1):
     r = requests.get(url)
     if(r.status_code == 200):
         content = BeautifulSoup(r.content,'html.parser')
-        return [item.find('a')['href'][-11:] for item in content.select('.yt-lockup-dismissable')]
+        return [(item.find('a')['href'][-11:], item.select('.yt-lockup-title')[0].find('a')['title']) for item in content.select('.yt-lockup-dismissable')]
+        # returns a tuple of: (video_id, video_title)
 
     print("Error getting videoids " + r.status_code)
     print(r.content)
