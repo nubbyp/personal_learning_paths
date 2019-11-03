@@ -31,6 +31,8 @@
     var hasPlayed = false;
     var hasSearched = false;
 
+    var savedScores = []
+
     function updateTimescore(){
         var postObj = new Object();
         postObj.video_id = videoId;
@@ -55,9 +57,11 @@
     }
 
     function gotTopResults(videos){
+        savedScores = [];
         var relatedDiv = document.getElementsByTagName('ytd-watch-next-secondary-results-renderer')[0].children.items.getElementsByTagName('ytd-compact-video-renderer');
         if(relatedDiv){
             for(var i = 0; i < videos.length; i++){
+                savedScores.push(videos[i][1][0]);
                 generateThumbnail(videos[i],i,relatedDiv);
             }
         }
@@ -68,10 +72,56 @@
         relatedDiv[index].children[0].children[0].children[0].children[0].children[0].src = 'https://i.ytimg.com/vi/' + video[0] + '/hqdefault.jpg'
         relatedDiv[index].children[0].children[1].children[0].href = '/watch?v=' + video[0];
         relatedDiv[index].children[0].children[1].children[0].children[0].children[1].textContent = video[1][1];
+        relatedDiv[index].children[0].children[1].children[0].children[0].children[1].title = video[1][1];
         relatedDiv[index].children[0].children[1].children[0].children[1].children[0].children[0].children[0].children[0].children[0].children[0].textContent = 'Score: ' + video[1][0];
         relatedDiv[index].children[0].children[1].children[0].children[1].children[0].children[1].children[0].textContent = 'Suggested for your learning';
+        relatedDiv[index].addEventListener('click',function(event) {
+            console.log(index);
+            var clickObj = new Object();
+            clickObj.sel = index
+            clickObj.vals = savedScores
+            GM_xmlhttpRequest ( {
+                method: "POST",
+                url:    "http://127.0.0.1:5000/clicked",
+                data:   JSON.stringify( clickObj ),
+                headers:    {
+                    "Content-Type": "application/json",
+                },
+                onload:     function (response) {
+                    console.log('sent click result');
+                },
+                onerror:    function(reponse) {
+                    //alert('error');
+                    console.log("error sending click result: ", reponse);
+                }
+            });
+            event.stopPropagation()
+        });
     }
-
+/*
+    function clickedResult(event){
+        console.log('Hello');
+        var clickObj = new Object();
+        clickObj.sel = index
+        clickObj.vals = savedScores
+        GM_xmlhttpRequest ( {
+            method: "POST",
+            url:    "http://127.0.0.1:5000/clicked",
+            data:   JSON.stringify( clickObj ),
+            headers:    {
+                "Content-Type": "application/json",
+            },
+            onload:     function (response) {
+                console.log('sent click result');
+            },
+            onerror:    function(reponse) {
+                //alert('error');
+                console.log("error sending click result: ", reponse);
+            }
+        });
+        event.stopPropagation()
+    }
+*/
     function initData(){
         duration = player.duration;
         watchedMetric = [[0.0,player.duration,0.0]];
