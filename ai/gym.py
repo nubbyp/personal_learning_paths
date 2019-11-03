@@ -7,7 +7,7 @@ import ai.featurizer as featurizer
 import ai.reward as reward
 from ai.parameter import Parameter
 
-MAX_RESULTS = 20
+MAX_RESULTS = 10
 
 class Environment(gym.Env):
     params = [

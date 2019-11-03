@@ -89,7 +89,7 @@ class AsyncTrainer(object):
         self._stats = Stats("%s.json" % os.path.splitext(self._nn_path)[0], self)
         self.weights = {
     	    'param_'+str(x):1
-    	    for x in range(20)
+    	    for x in range(10)
         }
          
     def set_training(self, training, for_epochs=0):
