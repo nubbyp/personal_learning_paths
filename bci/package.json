@@ -1,0 +1,20 @@
+{
+  "name": "bci",
+  "version": "1.0.0",
+  "description": "BCI interface for personal learning tracker",
+  "main": "bci`.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "buffer-hexdump": "^1.0.0",
+    "serialport": "^8.0.5",
+    "ws": "^7.2.0"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.1",
+    "utf-8-validate": "^5.0.2"
+  }
+}
