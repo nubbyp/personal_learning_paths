@@ -61,7 +61,7 @@ def suggest_next_video(video_id, input_chunks, search_term):
     if (video_id == 'R9npBuS9AsE'):
         output_id_list = get_canned_search_results()
     else:
-        output_id_list = get_real_search_results(video_id,search_term)
+        output_id_list = query_video_ids(search_term)
     
     #Truncate possible video list to 20 for performance reasons
     output_id_list = output_id_list[:20]
@@ -265,7 +265,19 @@ def get_real_search_results(original_video,search_term):
             continue
         
     return output_id_list
-    
+
+def query_video_ids(query,page=1):
+    url = 'https://www.youtube.com/results?q=' + query
+    if(page > 1):
+        url += '&page=' + str(page)
+
+    r = requests.get(url)
+    if(r.status_code == 200):
+        content = BeautifulSoup(r.content,'html.parser')
+        return [item.find('a')['href'][-11:] for item in content.select('.yt-lockup-dismissable')]
+
+    print("Error getting videoids " + r.status_code)
+    print(r.content)
 
 #video_id = 'R9npBuS9AsE'
 # Building A Tiny House From Start To Finish!
