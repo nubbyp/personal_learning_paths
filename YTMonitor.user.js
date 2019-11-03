@@ -33,6 +33,23 @@
 
     var savedScores = []
 
+    var socket = new WebSocket('ws://localhost:8086')
+
+    var concentration = false
+
+    if(typeof socket != 'undefined') {
+        console.log('socketto!')
+        socket.onmessage = function(event) {
+            var jsonObject = JSON.parse(event.data)
+            console.log(jsonObject)
+            if(jsonObject.hasPower && jsonObject.attention > 80) {
+                concentration = true
+                console.log('concentrating!')
+            }
+        }
+    } else {
+        console.log('no socket :(')
+    }
     function updateTimescore(){
         var postObj = new Object();
         postObj.video_id = videoId;
@@ -98,30 +115,7 @@
             event.stopPropagation()
         });
     }
-/*
-    function clickedResult(event){
-        console.log('Hello');
-        var clickObj = new Object();
-        clickObj.sel = index
-        clickObj.vals = savedScores
-        GM_xmlhttpRequest ( {
-            method: "POST",
-            url:    "http://127.0.0.1:5000/clicked",
-            data:   JSON.stringify( clickObj ),
-            headers:    {
-                "Content-Type": "application/json",
-            },
-            onload:     function (response) {
-                console.log('sent click result');
-            },
-            onerror:    function(reponse) {
-                //alert('error');
-                console.log("error sending click result: ", reponse);
-            }
-        });
-        event.stopPropagation()
-    }
-*/
+
     function initData(){
         duration = player.duration;
         watchedMetric = [[0.0,player.duration,0.0]];
@@ -188,6 +182,11 @@
         }
 
         var score = 1.0/playrate;
+
+        if(concentration) {
+            score *= 1.5
+            concentration = false
+        }
 
         if(watchedMetric[startIdx][0]<start) {
             newMetric.push([watchedMetric[startIdx][0],start,watchedMetric[startIdx][2]]);

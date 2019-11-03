@@ -1,6 +1,6 @@
 const dump = require('buffer-hexdump');
 const WebSocket = require('ws');
-const wss = new WebSocket.Server({ port: 8080 });
+const wss = new WebSocket.Server({ port: 8086 });
 
 const states = {
 	WAITING: 0,
@@ -18,10 +18,10 @@ wss.on('connection', function connection(ws) {
   conn = ws
   ws.on('message', function incoming(message) {
     console.log('received: %s', message);
-    ws.send('oh fanks');
+   // ws.send('oh fanks');
   });
 
-  ws.send('hello');
+  //ws.send('hello');
 });
 
 var packet_len
@@ -31,14 +31,14 @@ var data = Buffer.alloc(32)
 var eeg_data = {
 	'power': [0,0,0,0,0,0,0,0],
 	'signalQuality': 0,
-	'attention': 0,
+	'attention': 90,
 	'meditation': 0,
 	'hasPower': false,
 	'rawValue': 0
 	}
 	
 const SerialPort = require('serialport')
-const port = new SerialPort('/dev/cu.AdafruitEZ-Link070d-SPP', { baudRate: 9600 })
+const port = new SerialPort('COM5', { baudRate: 9600 })
 
 function clearPacket() {
     for (var i = 0; i < 32; i++) {
@@ -52,6 +52,16 @@ function clearEegPower() {
     }
 }
 
+// for testing only
+/*
+setInterval(function() {  
+    try {
+        conn.send(JSON.stringify(eeg_data))
+    } catch(error) {
+
+    }
+    console.log('Test packet sent!')}, 10000)
+*/
 
 function parsePacket(packetData, packetLength){
     // Loop through the packet, extracting data.
